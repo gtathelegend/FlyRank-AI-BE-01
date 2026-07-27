@@ -140,3 +140,42 @@ The API validates client input for `POST /tasks` and `PUT /tasks/{task_id}` requ
 - Non-boolean values for the `done` status parameter are rejected with `HTTP 400`.
 - Empty update payloads (`{}`) or updates with no valid properties are rejected with `HTTP 400`.
 - All validation failures return a JSON response containing an error explanation (e.g. `{"error": "Title must be a string"}`).
+
+## AI vs me
+
+This project was built with the assistance of a pairing coding partner (Antigravity). For the rematch experiment (Stage 7), we implemented an isolated alternative in `ai-version/main.py` using a strictly declarative, Pydantic-driven validation style and compared it with the main manual-parsing implementation.
+
+### AI Rematch Prompt
+"Using Python + FastAPI, independently implement the same core API: GET /, GET /health, GET /tasks, GET /tasks/{id}, POST /tasks, PUT /tasks/{id}, DELETE /tasks/{id}. Use: in-memory list, no database, Swagger at /docs. Required status codes: GET success = 200, POST success = 201, PUT success = 200, DELETE success = 204, invalid request = 400, unknown ID = 404. Validation: POST: title required, non-empty string, done defaults to false. PUT: title and/or done, empty/invalid body = 400. DELETE: 204, empty response body. 404/400 errors should use JSON error messages."
+
+### Comparison
+
+#### 1. What the AI implementation did better
+- **Swagger Documentation**: The AI version declares request bodies directly via FastAPI router function signatures using Pydantic models (`TaskCreate`, `TaskUpdate`). This generates correct request schema schemas out-of-the-box in Swagger without any manual OpenAPI schema overrides.
+- **Declarative Code**: The structure of the endpoints is much more declarative and typical of standard FastAPI codebases, keeping routes smaller.
+
+#### 2. What it did worse or differently
+- **Validation Overhead**: Because FastAPI/Pydantic automatically raises `RequestValidationError` which defaults to returning `422 Unprocessable Entity`, the AI version had to declare a global `@app.exception_handler(RequestValidationError)` and explicitly parse the nested validation payload structure to translate type/missing errors into the required `400 Bad Request` format.
+- **Type Coercion Issues**: Standard Pydantic schemas automatically coerce values (e.g. string `"yes"` or `"true"` to `True` for boolean fields). To strictly match the assignment specifications, the AI version had to import and utilize `StrictStr` and `StrictBool` to block coercion.
+
+#### 3. Concrete Differences
+- **Request Body Parsing**:
+  - *Main Implementation*: Uses raw `Request` objects and parses asynchronously via `await request.json()`, validating manually.
+  - *AI Implementation*: Declares `task_input: TaskCreate` / `TaskUpdate` schema parameters directly in the function arguments, letting FastAPI/Pydantic handle parsing.
+- **Error Validation Pipeline**:
+  - *Main Implementation*: Validates fields imperatively inside each endpoint using `isinstance()` checks and `.strip()`, returning HTTP 400 immediately.
+  - *AI Implementation*: Relies on Pydantic's type validations and uses a global FastAPI validation exception handler to catch type constraints and format `400 Bad Request` payloads.
+- **Swagger Schema Configuration**:
+  - *Main Implementation*: Explicitly overrides `app.openapi_schema` manually via a helper function `custom_openapi()` to document request structures without triggering 422 validations.
+  - *AI Implementation*: Needs no manual overrides since the schema is natively generated from the Pydantic type definitions.
+
+### Ambiguities in Specification
+- **Response Format for Reset**: The specification did not mandate a specific success payload style (e.g. whether it returns JSON `{"message": "..."}` or `{"status": "..."}` or is empty).
+- **PUT Body Requirements**: The spec was ambiguous on whether fields other than `title` and `done` should be ignored or raise a bad request error.
+- **Error Formatting**: The exact string content of validation errors was left open, only requiring the `{"error": "..."}` structure.
+
+### Rematch Prompt Improvements
+To improve the rematch prompt:
+- Mandate exact error message strings to align error responses precisely.
+- Specify whether type coercion (e.g. parsing integer `123` to string `"123"`) is allowed.
+- Define the expected success payload structures for non-CRUD utility routes like `POST /reset`.
