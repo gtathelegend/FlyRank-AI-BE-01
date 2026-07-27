@@ -125,7 +125,7 @@ server: uvicorn
 content-length: 45
 content-type: application/json
 
-{"id":1,"title":"Buy groceries","done":false}
+{"id":1,"title":"Complete backend assignment","done":false}
 ```
 
 ## In-Memory Storage / Mortality Experiment

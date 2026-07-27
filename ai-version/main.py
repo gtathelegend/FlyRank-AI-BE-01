@@ -13,9 +13,9 @@ app = FastAPI(
 
 # In-memory storage
 tasks = [
-    {"id": 1, "title": "Buy groceries", "done": False},
-    {"id": 2, "title": "Read a book", "done": True},
-    {"id": 3, "title": "Write some code", "done": False}
+    {"id": 1, "title": "Complete backend assignment", "done": False},
+    {"id": 2, "title": "Review HTTP status codes", "done": True},
+    {"id": 3, "title": "Test API with Swagger", "done": False}
 ]
 
 # Pydantic schemas for input/output and automatic validation
