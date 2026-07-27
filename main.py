@@ -11,12 +11,15 @@ app = FastAPI(
     description="A simple, in-memory CRUD API for managing tasks.",
 )
 
-# In-memory storage for tasks
-tasks = [
+# Seed/Original tasks data
+SEED_TASKS = [
     {"id": 1, "title": "Buy groceries", "done": False},
     {"id": 2, "title": "Read a book", "done": True},
     {"id": 3, "title": "Write some code", "done": False}
 ]
+
+# In-memory storage for tasks
+tasks = [t.copy() for t in SEED_TASKS]
 
 # Pydantic schemas for documentation
 class Task(BaseModel):
@@ -26,6 +29,11 @@ class Task(BaseModel):
 
 class ErrorResponse(BaseModel):
     error: str = Field(..., description="Error message details")
+
+class StatsResponse(BaseModel):
+    total: int = Field(..., description="The total number of tasks")
+    done: int = Field(..., description="The number of tasks that are completed")
+    open: int = Field(..., description="The number of tasks that are not completed")
 
 @app.get(
     "/",
@@ -74,7 +82,7 @@ def read_health():
 @app.get(
     "/tasks",
     summary="List All Tasks",
-    description="Retrieves a list of all existing tasks stored in-memory.",
+    description="Retrieves a list of all existing tasks stored in-memory, optionally filtered by done status and/or search term.",
     response_model=List[Task],
     responses={
         200: {
@@ -82,8 +90,56 @@ def read_health():
         }
     }
 )
-def get_tasks():
-    return tasks
+def get_tasks(done: Optional[bool] = None, search: Optional[str] = None):
+    filtered_tasks = tasks
+    if done is not None:
+        filtered_tasks = [t for t in filtered_tasks if t["done"] == done]
+    if search is not None:
+        search_term = search.lower()
+        filtered_tasks = [t for t in filtered_tasks if search_term in t["title"].lower()]
+    return filtered_tasks
+
+@app.get(
+    "/stats",
+    summary="Get Task Statistics",
+    description="Returns calculated statistics (total, done, open tasks) from the current in-memory task list.",
+    response_model=StatsResponse,
+    responses={
+        200: {
+            "description": "Successfully retrieved stats."
+        }
+    }
+)
+def get_stats():
+    total = len(tasks)
+    done_count = sum(1 for t in tasks if t["done"])
+    open_count = total - done_count
+    return {
+        "total": total,
+        "done": done_count,
+        "open": open_count
+    }
+
+@app.post(
+    "/reset",
+    summary="Reset Tasks",
+    description="Restores the original 3 example tasks back into the in-memory store.",
+    responses={
+        200: {
+            "description": "Successfully reset tasks list to original seed data.",
+            "content": {
+                "application/json": {
+                    "example": {"message": "Tasks reset successfully"}
+                }
+            }
+        }
+    }
+)
+def reset_tasks():
+    tasks.clear()
+    for t in SEED_TASKS:
+        tasks.append(t.copy())
+    return {"message": "Tasks reset successfully"}
 
 @app.get(
     "/tasks/{task_id}",
